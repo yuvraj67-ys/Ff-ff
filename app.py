@@ -1,7 +1,6 @@
 """
 NEXUS V11 - GOD LEVEL FREE FIRE API PANEL
-Includes: 11+ Tools, Pure Python Protobuf Engine, AES Crypto, Async Request Blaster,
-MajorLogin JWT Extractor, Outfit Generator, Ban Checker, and Advanced UI.
+Fixed: Protobuf Engine, Bio 401 Error, Ban Check 404, and Vercel 504 Timeouts.
 """
 
 from flask import Flask, request, jsonify, send_file, render_template_string
@@ -16,7 +15,6 @@ import base64
 import random
 import hmac
 import hashlib
-import re
 import traceback
 from io import BytesIO
 from PIL import Image, ImageDraw
@@ -29,12 +27,12 @@ CORS(app)
 executor = ThreadPoolExecutor(max_workers=20)
 
 # ==========================================
-# 🔐 ADVANCED CORE ENCRYPTION ENGINE
+# 🔐 ADVANCED CORE ENCRYPTION & PROTOBUF ENGINE
 # ==========================================
 AES_KEY = b'Yg&tc%DEuh6%Zc^8'
 AES_IV = b'6oyZDr22E3ychjM%'
 API_KEY = "MAFU"
-VERCEL_TIMEOUT = 8.0  # Safe execution limit for Vercel Free Tier
+VERCEL_TIMEOUT = 8.0  # Vercel safe limit
 
 class FFCrypto:
     @staticmethod
@@ -51,10 +49,14 @@ class FFCrypto:
             return cipher.decrypt(ciphertext)
 
 class FFProtobuf:
-    """Pure Python Protobuf builder ensuring Emoji & V-Badge compatibility"""
+    """
+    Pure Python Protobuf builder. Bypasses the need for .pb2 files.
+    Calculates exact Varint bytes for seamless Vercel deployment.
+    """
     @staticmethod
     def encode_varint(n: int) -> bytes:
         e = []
+        n = int(n)
         while True:
             byte = n & 0x7F
             n >>= 7
@@ -64,22 +66,32 @@ class FFProtobuf:
         return bytes(e)
 
     @staticmethod
+    def encode_string(s: str) -> bytes:
+        b_str = s.encode('utf-8')
+        return FFProtobuf.encode_varint(len(b_str)) + b_str
+
+    @staticmethod
     def create_bio_payload(bio_text: str) -> bytes:
-        """Flawlessly encodes Bio text (with UTF-8 emojis/colors) for UpdateSocialBasicInfo"""
-        bio_bytes = bio_text.encode('utf-8')
-        bio_len_varint = FFProtobuf.encode_varint(len(bio_bytes))
-        # Field 2 (val 17) -> 10 11 | Field 8 (string) -> 42 | Field 9 (val 1) -> 48 01
-        payload = b'\x10\x11\x42' + bio_len_varint + bio_bytes + b'\x48\x01'
+        """
+        FIXED 401 ERROR: Recreates EXACT payload from data1_pb2.py
+        Field 2: int (17) -> \x10\x11
+        Field 5: EmptyMessage -> \x2a\x00
+        Field 6: EmptyMessage -> \x32\x00
+        Field 8: String (bio_text) -> \x42 + len + text
+        Field 9: int (1) -> \x48\x01
+        Field 11: EmptyMessage -> \x5a\x00
+        Field 12: EmptyMessage -> \x62\x00
+        """
+        payload = b'\x10\x11\x2a\x00\x32\x00\x42' + FFProtobuf.encode_string(bio_text) + b'\x48\x01\x5a\x00\x62\x00'
         return FFCrypto.encrypt(payload)
 
 def load_tokens(server):
-    """Loads backup tokens from JSON files"""
     filename = f"token_{server.lower()}.json"
     if not os.path.exists(filename): filename = "token_ind.json"
     try:
         with open(filename, "r") as f:
             return [i["token"] for i in json.load(f) if "token" in i]
-    except Exception:
+    except:
         return []
 
 # ==========================================
@@ -120,6 +132,7 @@ def extract_jwt_via_majorlogin(access_token, open_id, region="IND"):
 
         r = requests.post(url, headers=headers, data=encrypted_payload, verify=False, timeout=10)
         if r.status_code == 200:
+            import re
             response_text = r.content.decode('utf-8', errors='ignore')
             match = re.search(r'(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', response_text)
             if match: return match.group(1)
@@ -127,11 +140,9 @@ def extract_jwt_via_majorlogin(access_token, open_id, region="IND"):
             decrypted = FFCrypto.decrypt(r.content).decode('utf-8', errors='ignore')
             match = re.search(r'(eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)', decrypted)
             if match: return match.group(1)
-
         return None
     except Exception as e:
         return None
-
 
 # ==========================================
 # 🎨 GOD-LEVEL UI (HTML + Tailwind)
@@ -153,7 +164,8 @@ HTML_UI = """
         .bg-glow { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100vw; height: 100vh; background: radial-gradient(circle, rgba(0, 243, 255, 0.05) 0%, rgba(11,15,25,1) 80%); z-index: -1; pointer-events: none; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.8); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); }
         .neon-text { text-shadow: 0 0 5px #0ea5e9, 0 0 10px #0ea5e9; color: #38bdf8; }
-        .btn-neon { background: linear-gradient(to right, #0284c7, #0369a1); color: #fff; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; border: none; }
+        .neon-purple { text-shadow: 0 0 5px #d900ff, 0 0 10px #d900ff; color: #d900ff; }
+        .btn-neon { background: linear-gradient(to right, #0284c7, #0369a1); color: #fff; transition: 0.3s; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; border: none; cursor: pointer; }
         .btn-neon:hover { background: linear-gradient(to right, #0369a1, #075985); box-shadow: 0 0 15px rgba(14, 165, 233, 0.5); transform: translateY(-2px); }
         .tab-content { display: none; animation: fade 0.3s ease-in-out; }
         .tab-content.active { display: block; }
@@ -161,7 +173,7 @@ HTML_UI = """
         #terminal { background: #000; border: 1px solid #334155; color: #4ade80; font-family: 'Consolas', monospace; height: 250px; overflow-y: auto; padding: 15px; font-size: 13px; border-radius: 0 0 8px 8px; }
         input, select, textarea { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 12px; width: 100%; border-radius: 6px; outline: none; margin-bottom: 15px; transition: border-color 0.3s; }
         input:focus, select:focus, textarea:focus { border-color: #0ea5e9; box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2); }
-        .sidebar-btn { padding: 12px 16px; border-radius: 8px; text-align: left; display: flex; align-items: center; gap: 12px; transition: all 0.2s; color: #94a3b8; font-weight: 500; }
+        .sidebar-btn { padding: 12px 16px; border-radius: 8px; text-align: left; display: flex; align-items: center; gap: 12px; transition: all 0.2s; color: #94a3b8; font-weight: 500; cursor: pointer; }
         .sidebar-btn:hover, .sidebar-btn.active-tab { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border-left: 3px solid #38bdf8; }
         .icon-box { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; background: rgba(14, 165, 233, 0.1); color: #38bdf8; font-size: 1.2rem; margin-bottom: 15px; }
     </style>
@@ -178,9 +190,9 @@ HTML_UI = """
             <button onclick="switchTab('player-info', this)" class="sidebar-btn"><i class="fa-solid fa-user-astronaut text-xl"></i> <span class="hidden md:inline">Player Intel</span></button>
             <button onclick="switchTab('spammer', this)" class="sidebar-btn"><i class="fa-solid fa-fire text-xl"></i> <span class="hidden md:inline">Engagement</span></button>
             <button onclick="switchTab('bio-updater', this)" class="sidebar-btn"><i class="fa-solid fa-pen-nib text-xl"></i> <span class="hidden md:inline">Bio Updater</span></button>
+            <button onclick="switchTab('ban-check', this)" class="sidebar-btn"><i class="fa-solid fa-shield-halved text-xl"></i> <span class="hidden md:inline">Ban Checker</span></button>
             <button onclick="switchTab('token-gen', this)" class="sidebar-btn"><i class="fa-solid fa-key text-xl"></i> <span class="hidden md:inline">Auth Extractor</span></button>
             <button onclick="switchTab('account-gen', this)" class="sidebar-btn"><i class="fa-solid fa-user-plus text-xl"></i> <span class="hidden md:inline">Account Maker</span></button>
-            <button onclick="switchTab('ban-check', this)" class="sidebar-btn"><i class="fa-solid fa-shield-halved text-xl"></i> <span class="hidden md:inline">Ban Checker</span></button>
             <button onclick="switchTab('friend-mgr', this)" class="sidebar-btn"><i class="fa-solid fa-user-minus text-xl"></i> <span class="hidden md:inline">Friend Mgr</span></button>
             <button onclick="switchTab('tcp-bot', this)" class="sidebar-btn text-purple-400"><i class="fa-solid fa-robot text-xl"></i> <span class="hidden md:inline">VPS Bot Panel</span></button>
         </nav>
@@ -197,19 +209,19 @@ HTML_UI = """
                     <div class="icon-box mx-auto"><i class="fa-solid fa-server"></i></div>
                     <h3 class="text-lg text-slate-400">API Status</h3>
                     <p class="text-2xl font-bold text-green-400 mt-2">ONLINE</p>
-                    <p class="text-xs text-slate-500 mt-1">Vercel Serverless</p>
+                    <p class="text-xs text-slate-500 mt-1">Vercel Serverless (Timeout: 8.0s)</p>
                 </div>
                 <div class="glass p-6 rounded-xl text-center">
-                    <div class="icon-box mx-auto text-pink-400 bg-pink-400/10"><i class="fa-solid fa-heart"></i></div>
-                    <h3 class="text-lg text-slate-400">Auto Liker</h3>
-                    <p class="text-2xl font-bold text-white mt-2">Active</p>
-                    <p class="text-xs text-slate-500 mt-1">Timeout Protected</p>
-                </div>
-                <div class="glass p-6 rounded-xl text-center">
-                    <div class="icon-box mx-auto text-purple-400 bg-purple-400/10"><i class="fa-solid fa-microchip"></i></div>
+                    <div class="icon-box mx-auto text-pink-400 bg-pink-400/10"><i class="fa-solid fa-shield-halved"></i></div>
                     <h3 class="text-lg text-slate-400">Protobuf Engine</h3>
-                    <p class="text-2xl font-bold text-white mt-2">v10.5</p>
-                    <p class="text-xs text-slate-500 mt-1">Pure Python AES</p>
+                    <p class="text-2xl font-bold text-white mt-2">v11.0</p>
+                    <p class="text-xs text-slate-500 mt-1">Pure Python AES + Varint</p>
+                </div>
+                <div class="glass p-6 rounded-xl text-center">
+                    <div class="icon-box mx-auto text-purple-400 bg-purple-400/10"><i class="fa-solid fa-code"></i></div>
+                    <h3 class="text-lg text-slate-400">Tools Loaded</h3>
+                    <p class="text-2xl font-bold text-white mt-2">11 Modules</p>
+                    <p class="text-xs text-slate-500 mt-1">All Systems Operational</p>
                 </div>
             </div>
         </div>
@@ -239,7 +251,7 @@ HTML_UI = """
                     <div class="icon-box text-pink-500 bg-pink-500/10"><i class="fa-solid fa-heart"></i></div>
                     <h3 class="text-xl mb-4 font-bold text-white">Auto Liker</h3>
                     <label class="block text-sm text-slate-400 mb-1">Target UID</label>
-                    <input type="text" id="like-uid" placeholder="UID...">
+                    <input type="text" id="like-uid" placeholder="UID..." style="border-color:#ec4899; color:#ec4899;">
                     <label class="block text-sm text-slate-400 mb-1">Server</label>
                     <select id="like-server">
                         <option value="IND">India Server</option>
@@ -252,7 +264,7 @@ HTML_UI = """
                     <div class="icon-box text-blue-500 bg-blue-500/10"><i class="fa-solid fa-eye"></i></div>
                     <h3 class="text-xl mb-4 font-bold text-white">Profile Visits (1000x)</h3>
                     <label class="block text-sm text-slate-400 mb-1">Target UID</label>
-                    <input type="text" id="visit-uid" placeholder="UID...">
+                    <input type="text" id="visit-uid" placeholder="UID..." style="border-color:#3b82f6; color:#3b82f6;">
                     <label class="block text-sm text-slate-400 mb-1">Server</label>
                     <select id="visit-server">
                         <option value="IND">India Server</option>
@@ -260,6 +272,34 @@ HTML_UI = """
                     </select>
                     <button onclick="apiCall('/api/visit', {uid: document.getElementById('visit-uid').value, server: document.getElementById('visit-server').value})" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg transition font-bold uppercase tracking-wide mt-2">Execute Visits</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Tab: Bio Updater -->
+        <div id="bio-updater" class="tab-content max-w-3xl mx-auto w-full">
+            <h2 class="text-3xl mb-6 font-bold text-white border-b border-slate-700 pb-3"><i class="fa-solid fa-pen-nib text-orange-500 mr-2"></i> LONG BIO UPDATER</h2>
+            <div class="glass p-8 rounded-xl border-t-4 border-orange-500">
+                <div class="bg-orange-500/10 border border-orange-500/30 p-3 rounded mb-4 text-sm text-orange-200">
+                    <i class="fa-solid fa-circle-check"></i> Supports V-Badge codes, Colors [FFFF00], and Emojis perfectly!
+                </div>
+                <label class="block text-sm text-slate-400 mb-1">Game JWT Token (Starts with eyJ)</label>
+                <input type="text" id="bio-token" placeholder="Paste JWT Token...">
+                <label class="block text-sm text-slate-400 mb-1">Bio Signature Content</label>
+                <textarea id="bio-text" placeholder="[b][c][FFFF00]V-Badge Text Here..." class="h-32"></textarea>
+                <button onclick="apiCall('/api/bio/update', {jwt: document.getElementById('bio-token').value, bio: document.getElementById('bio-text').value})" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-lg font-bold uppercase mt-2">Update Signature</button>
+            </div>
+        </div>
+
+        <!-- Tab: Ban Check -->
+        <div id="ban-check" class="tab-content max-w-3xl mx-auto w-full">
+            <h2 class="text-3xl mb-6 font-bold text-white border-b border-slate-700 pb-3"><i class="fa-solid fa-shield-halved text-red-500 mr-2"></i> ANTI-HACK BAN CHECKER</h2>
+            <div class="glass p-8 rounded-xl border-t-4 border-red-500">
+                <div class="bg-red-500/10 border border-red-500/30 p-3 rounded mb-4 text-sm text-red-200">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Connects directly to Garena's Anti-Hack Database to verify suspension status.
+                </div>
+                <label class="block text-sm text-slate-400 mb-1">Player UID</label>
+                <input type="text" id="ban-uid" placeholder="Target UID to Check">
+                <button onclick="apiCall('/api/bancheck', {uid: document.getElementById('ban-uid').value})" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold uppercase mt-2">Check Ban Status</button>
             </div>
         </div>
 
@@ -295,31 +335,6 @@ HTML_UI = """
                     <option value="GHOST">Ghost Mode (BR)</option>
                 </select>
                 <button onclick="apiCall('/api/account/generate', {name: document.getElementById('acc-name').value, region: document.getElementById('acc-region').value})" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-lg font-bold uppercase mt-2">Create Account</button>
-            </div>
-        </div>
-
-        <!-- Tab: Bio Updater -->
-        <div id="bio-updater" class="tab-content max-w-3xl mx-auto w-full">
-            <h2 class="text-3xl mb-6 font-bold text-white border-b border-slate-700 pb-3"><i class="fa-solid fa-pen-nib text-orange-500 mr-2"></i> LONG BIO UPDATER</h2>
-            <div class="glass p-8 rounded-xl border-t-4 border-orange-500">
-                <div class="bg-orange-500/10 border border-orange-500/30 p-3 rounded mb-4 text-sm text-orange-200">
-                    <i class="fa-solid fa-circle-info"></i> Supports V-Badge codes, Colors [FFFF00], and Emojis perfectly!
-                </div>
-                <label class="block text-sm text-slate-400 mb-1">Game JWT Token (Starts with eyJ)</label>
-                <input type="text" id="bio-token" placeholder="Paste JWT Token...">
-                <label class="block text-sm text-slate-400 mb-1">Bio Signature Content</label>
-                <textarea id="bio-text" placeholder="[b][c][FFFF00]V-Badge Text Here..." class="h-32"></textarea>
-                <button onclick="apiCall('/api/bio/update', {jwt: document.getElementById('bio-token').value, bio: document.getElementById('bio-text').value})" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-lg font-bold uppercase mt-2">Update Signature</button>
-            </div>
-        </div>
-
-        <!-- Tab: Ban Check -->
-        <div id="ban-check" class="tab-content max-w-3xl mx-auto w-full">
-            <h2 class="text-3xl mb-6 font-bold text-white border-b border-slate-700 pb-3"><i class="fa-solid fa-shield-halved text-red-500 mr-2"></i> BAN CHECKER</h2>
-            <div class="glass p-8 rounded-xl border-t-4 border-red-500">
-                <label class="block text-sm text-slate-400 mb-1">Player UID</label>
-                <input type="text" id="ban-uid" placeholder="Target UID to Check">
-                <button onclick="apiCall('/api/bancheck', {uid: document.getElementById('ban-uid').value})" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-lg font-bold uppercase mt-2">Check Ban Status</button>
             </div>
         </div>
 
@@ -434,7 +449,7 @@ def api_info():
         r = requests.get(f"https://mafuuuu-info-api.vercel.app/mafu-info?uid={uid}", timeout=5)
         return jsonify(r.json())
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 # ==========================================
 # 2. OUTFIT GENERATOR (Bulletproof)
@@ -465,7 +480,7 @@ def api_outfit():
                     used_ids.add(str(oid))
                     break
             try:
-                r = requests.get(f'https://iconapi.wasmer.app/{matched}', timeout=4)
+                r = requests.get(f'https://iconapi.wasmer.app/{matched}', timeout=5)
                 if r.status_code == 200:
                     return Image.open(BytesIO(r.content)).convert("RGBA").resize((150, 150), Image.LANCZOS)
             except: pass
@@ -492,7 +507,7 @@ def api_outfit():
         output.seek(0)
         return send_file(output, mimetype='image/png')
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 # ==========================================
 # 3 & 4. ENGAGEMENT SPAMMERS (Vercel Safe)
@@ -515,9 +530,8 @@ def api_like():
     if not tokens: return jsonify({"error": f"No tokens for {server}"}), 404
 
     try:
-        uid_v = enc_uid(uid)
-        reg_hex = server.encode().hex()
-        payload = bytes.fromhex(f"08{uid_v}12{len(server):02x}{reg_hex}")
+        # Protobuf: 08 (Varint) UID, 12 (String) Region
+        payload = b'\x08' + FFProtobuf.encode_varint(int(uid)) + b'\x12' + FFProtobuf.encode_string(server)
         enc_payload = FFCrypto.encrypt(payload)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -543,7 +557,8 @@ def api_visit():
     if not tokens: return jsonify({"error": "No tokens"}), 404
 
     try:
-        payload = bytes.fromhex(f"08{enc_uid(uid)}1007") 
+        # Protobuf: 08 (Varint) UID, 10 (Enum) 07
+        payload = b'\x08' + FFProtobuf.encode_varint(int(uid)) + b'\x10\x07'
         enc_payload = FFCrypto.encrypt(payload)
     except Exception as e: return jsonify({"error": str(e)}), 500
 
@@ -568,21 +583,30 @@ def api_visit():
 def api_auth_token():
     uid = request.args.get('uid')
     pwd = request.args.get('password')
+    if not uid or not pwd: return jsonify({"error": "UID/Password required"}), 400
+    
     acc, opn = fetch_access_token(uid, pwd)
     if acc: return jsonify({"access_token": acc, "open_id": opn})
-    return jsonify({"error": "Failed to get access token"}), 401
+    return jsonify({"error": "Failed to get access token. Check credentials."}), 401
 
 @app.route('/api/auth/jwt', methods=['GET'])
 def api_auth_jwt():
     uid = request.args.get('uid')
     pwd = request.args.get('password')
+    if not uid or not pwd: return jsonify({"error": "UID/Password required"}), 400
+
     acc, opn = fetch_access_token(uid, pwd)
-    if not acc: return jsonify({"error": "Invalid Credentials"}), 401
+    if not acc: return jsonify({"error": "Invalid Credentials (Oauth Failed)"}), 401
 
     jwt_token = extract_jwt_via_majorlogin(acc, opn)
     if jwt_token:
-        return jsonify({"status": "success", "jwt_token": jwt_token, "access_token": acc})
-    return jsonify({"error": "MajorLogin failed. Account may be banned or wrong server."}), 500
+        return jsonify({
+            "status": "success",
+            "jwt_token": jwt_token,
+            "access_token": acc,
+            "open_id": opn
+        })
+    return jsonify({"error": "MajorLogin failed. Check server/region or account ban."}), 500
 
 # ==========================================
 # 7. ACCOUNT MAKER
@@ -590,6 +614,7 @@ def api_auth_jwt():
 @app.route('/api/account/generate', methods=['GET'])
 def api_account_gen():
     name_prefix = request.args.get('name', 'NEXUS')
+    region = request.args.get('region', 'IND').upper()
     try:
         password = f"NEXUS-{random.randint(1000,9999)}X"
         data = f"password={password}&client_type=2&source=2&app_id=100067"
@@ -597,13 +622,15 @@ def api_account_gen():
         
         r = requests.post("https://100067.connect.garena.com/oauth/guest/register", data=data, headers={"Authorization": "Signature " + sig}, timeout=5)
         uid = r.json().get('uid')
-        if not uid: return jsonify({"error": "Registration Failed"}), 400
-        return jsonify({"success": True, "uid": uid, "password": password})
+        if not uid: return jsonify({"error": "Registration Failed", "raw": r.text}), 400
+
+        acc, opn = fetch_access_token(uid, password)
+        return jsonify({"success": True, "uid": uid, "password": password, "access_token": acc, "open_id": opn})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 # ==========================================
-# 8. BIO UPDATER (Pure Python Protobuf)
+# 8. BIO UPDATER (Pure Python Protobuf FIXED)
 # ==========================================
 @app.route('/api/bio/update', methods=['GET'])
 def api_bio():
@@ -611,11 +638,9 @@ def api_bio():
     bio = request.args.get('bio')
     if not jwt_tok or not bio: return jsonify({"error": "JWT and Bio required"}), 400
     try:
-        # PURE PYTHON PROTOBUF ENCODING
         enc_payload = FFProtobuf.create_bio_payload(bio)
-        
-        r = requests.post("https://clientbp.ggblueshark.com/UpdateSocialBasicInfo", data=enc_payload, headers={"Authorization": f"Bearer {jwt_tok}", "ReleaseVersion":"OB53"}, verify=False, timeout=5)
-        return jsonify({"status": r.status_code, "msg": "Bio updated successfully!" if r.status_code==200 else "Update failed"})
+        r = requests.post("https://clientbp.ggblueshark.com/UpdateSocialBasicInfo", data=enc_payload, headers={"Authorization": f"Bearer {jwt_tok}", "ReleaseVersion":"OB53", "Content-Type": "application/x-www-form-urlencoded"}, verify=False, timeout=5)
+        return jsonify({"status": r.status_code, "msg": "Bio updated successfully!" if r.status_code==200 else "Update failed (Check JWT or Server)"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ==========================================
@@ -627,31 +652,54 @@ def api_friend_del():
     uid = request.args.get('uid')
     if not jwt_tok or not uid: return jsonify({"error": "JWT and Target UID required"}), 400
     try:
-        payload = bytes.fromhex(f"08a7c4839f1e10{enc_uid(uid)}")
+        # Protobuf for RemoveFriend: 08 a7 c4 83 9f 1e 10 (standard header) + Varint UID
+        payload = bytes.fromhex("08a7c4839f1e10") + FFProtobuf.encode_varint(int(uid))
         enc = FFCrypto.encrypt(payload)
         r = requests.post("https://clientbp.ggblueshark.com/RemoveFriend", data=enc, headers={"Authorization": f"Bearer {jwt_tok}", "ReleaseVersion":"OB53"}, verify=False, timeout=5)
         return jsonify({"status": r.status_code, "msg": "Friend removed!" if r.status_code==200 else "Failed"})
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 # ==========================================
-# 10. BAN CHECKER
+# 10. BAN CHECKER (shop2game + ff.garena method)
 # ==========================================
 @app.route('/api/bancheck', methods=['GET'])
 def api_bancheck():
     uid = request.args.get('uid')
     if not uid: return jsonify({"error": "UID required"}), 400
     try:
+        # Step 1: Verify Account Exists via Shop2Game
+        s_headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'Origin': 'https://shop2game.com',
+            'Content-Type': 'application/json'
+        }
+        s_data = {'app_id': 100067, 'login_id': uid, 'app_server_id': 0}
+        r1 = requests.post('https://shop2game.com/api/auth/player_id_login', headers=s_headers, json=s_data, timeout=5)
+        
+        if r1.status_code != 200 or not r1.json().get('nickname'):
+            return jsonify({"error": "ID NOT FOUND or Shop2Game block"}), 404
+        
+        nickname = r1.json().get('nickname', 'Unknown')
+        region = r1.json().get('region', 'Unknown')
+
+        # Step 2: Check Ban Status
         url = f'https://ff.garena.com/api/antihack/check_banned?lang=en&uid={uid}'
-        headers = {'User-Agent': 'Mozilla/5.0', 'x-requested-with': 'B6FksShzIgjfrYImLpTsadjS86sddhFH'}
-        r = requests.get(url, headers=headers, timeout=5)
-        if r.status_code == 200:
-            data = r.json()
+        b_headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+            'x-requested-with': 'B6FksShzIgjfrYImLpTsadjS86sddhFH',
+            'Referer': 'https://ff.garena.com/en/support/'
+        }
+        r2 = requests.get(url, headers=b_headers, timeout=5)
+        
+        if r2.status_code == 200:
+            data = r2.json()
             if data.get("status") == "success":
                 is_banned = data["data"].get("is_banned", 0)
                 period = data["data"].get("period", 0)
                 msg = f"Banned for {period} months" if period > 0 else "Banned indefinitely" if is_banned else "Not banned"
-                return jsonify({"uid": uid, "status": "banned" if is_banned else "safe", "message": msg, "raw": data})
-        return jsonify({"error": "Failed to retrieve status"}), 500
+                return jsonify({"uid": uid, "nickname": nickname, "region": region, "status": "banned" if is_banned else "safe", "message": msg})
+        
+        return jsonify({"error": "Failed to retrieve ban status. Cloudflare block or API down."}), 500
     except Exception as e: return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
